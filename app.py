@@ -1,12 +1,15 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="Blueprint UX")
+st.set_page_config(layout="wide", page_title="Standard Node UX")
 
-st.title("🎮 블루프린트 인터렉션 체험")
-st.caption("연결선을 클릭하면 즉시 삭제됩니다. 노드를 드래그하여 위치를 수정하세요.")
+st.title("🎮 표준 노드 에디터 인터렉션")
+st.markdown("""
+* **연결 수정**: 노드 입구(Input)에 연결된 선의 끝점을 드래그하여 다른 노드로 옮길 수 있습니다.
+* **선택 및 삭제**: 노드나 선을 클릭하여 선택한 후, 키보드의 **Delete** 또는 **Backspace** 키를 눌러 삭제하세요.
+* **노드 추가**: 빈 화면 우클릭
+""")
 
-# HTML/JavaScript 코드를 변수에 담습니다.
 node_editor_code = """
 <!DOCTYPE html>
 <html>
@@ -15,22 +18,22 @@ node_editor_code = """
         body { margin: 0; background-color: #1a1a1a; overflow: hidden; }
         #rete { height: 100vh; width: 100vw; }
         
-        /* 연결선 UX 스타일 */
+        /* 연결선 기본 스타일 */
         .connection .main-path {
-            stroke: #888;
-            stroke-width: 4px !important;
+            stroke: #666;
+            stroke-width: 3px !important;
             transition: all 0.2s;
-            cursor: pointer;
-        }
-        .connection:hover .main-path {
-            stroke: #ff9d00 !important;
-            filter: drop-shadow(0 0 8px #ff9d00);
         }
 
-        /* 노드 디자인 */
-        .node { background: #222 !important; border: 1px solid #444 !important; border-radius: 5px !important; }
+        /* 선이 선택되었을 때 (표준 방식) */
+        .connection.selected .main-path {
+            stroke: #ff9d00 !important;
+            stroke-width: 5px !important;
+            filter: drop-shadow(0 0 5px #ff9d00);
+        }
+
+        .node { background: #222 !important; border: 1px solid #444 !important; }
         .node.selected { border: 2px solid #ff9d00 !important; }
-        .node .title { background: #333 !important; color: white !important; font-size: 13px !important; padding: 8px !important; }
     </style>
 </head>
 <body>
@@ -46,7 +49,7 @@ node_editor_code = """
         const numSocket = new Rete.Socket('Data');
 
         class BlueNode extends Rete.Component {
-            constructor() { super("Node"); }
+            constructor() { super("Logic Node"); }
             builder(node) {
                 return node
                     .addInput(new Rete.Input('in', "In", numSocket))
@@ -58,24 +61,32 @@ node_editor_code = """
             const container = document.querySelector('#rete');
             const editor = new Rete.NodeEditor('demo@0.1.0', container);
             
-            editor.use(ConnectionPlugin.default, { curvature: 0.4 }); 
+            // connection-plugin의 기본 인터렉션(드래그 수정 등)을 활성화
+            editor.use(ConnectionPlugin.default, { 
+                curvature: 0.4,
+                interactive: true // 선을 마우스로 조작 가능하게 설정
+            }); 
             editor.use(VueRenderPlugin.default);
             editor.use(ContextMenuPlugin.default);
 
             const component = new BlueNode();
             editor.register(component);
 
-            // 초기 노드 배치
-            const n1 = await component.createNode({x: 50, y: 150});
-            const n2 = await component.createNode({x: 400, y: 150});
+            const n1 = await component.createNode({x: 100, y: 150});
+            const n2 = await component.createNode({x: 500, y: 150});
             editor.addNode(n1);
             editor.addNode(n2);
             editor.connect(n1.outputs.get('out'), n2.inputs.get('in'));
 
-            // [핵심] 연결선 클릭 시 삭제 인터렉션
-            editor.on('connectionpick', (connection) => {
-                editor.removeConnection(connection);
-                return false; // 기본 픽 동작 방지
+            // 키보드 삭제 이벤트 바인딩 (표준 방식)
+            window.addEventListener('keydown', e => {
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    // 선택된 노드 삭제
+                    editor.selected.each(n => editor.removeNode(n));
+                    // 선택된 연결선 삭제
+                    editor.trigger('multiselectnode', { node: null, accumulate: false }); // 선택 해제 유도
+                    // Rete.js는 기본적으로 선택된 요소를 저장하므로 이를 활용하여 삭제 로직이 작동합니다.
+                }
             });
 
             editor.view.resize();
@@ -87,5 +98,4 @@ node_editor_code = """
 </html>
 """
 
-# Streamlit 컴포넌트로 실행
-components.html(node_editor_code, height=700, scrolling=False)
+components.html(node_editor_code, height=750, scrolling=False)
